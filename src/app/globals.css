@@ -1,0 +1,547 @@
+@import "tailwindcss";
+
+/* =========================================================================
+   รามยอนออนนี่ — design tokens
+
+   The palette is unchanged from the original brand: chilli red, gochujang
+   red, tangerine, danmuji yellow, rice cream. Everything else is derived
+   from it, so the neutrals lean warm instead of the cool greys they replace.
+   ========================================================================= */
+
+@theme {
+  /* Brand — unchanged */
+  --color-primary: #e53935;
+  --color-primary-dark: #b71c1c;
+  --color-secondary: #fb8c00;
+  --color-accent: #fdd835;
+  --color-brand-bg: #fdfbf7;
+  --color-brand-card: #ffffff;
+
+  /* Warm neutrals derived from the cream */
+  --color-ink: #2b1a15;
+  --color-ink-soft: #6d574d;
+  --color-ink-faint: #9a877c;
+  --color-edge: #e6dbd0;
+  --color-edge-soft: #f2eae0;
+  --color-shell: #f7f1e8;
+
+  /* Service states — readable at a glance, still inside the brand heat range */
+  --color-wait: #a97400;
+  --color-wait-tint: #fdf3d6;
+  --color-cook: #d97400;
+  --color-cook-tint: #fdeada;
+  --color-done: #3f7a4f;
+  --color-done-tint: #e6f0e5;
+
+  /* Kitchen screen — a dark room, warm rather than blue */
+  --color-kds: #17100d;
+  --color-kds-panel: #241814;
+  --color-kds-raise: #2f201a;
+  --color-kds-edge: #3d2a22;
+  --color-kds-text: #f4ece5;
+  --color-kds-mute: #9b8377;
+
+  /* Type */
+  --font-display: var(--font-bai-jamjuree), var(--font-plex-thai), system-ui, sans-serif;
+  --font-sans: var(--font-plex-thai), var(--font-bai-jamjuree), system-ui, sans-serif;
+
+  /* Radii carry meaning: paper is square, surfaces are soft, controls are round */
+  --radius-chit: 3px;
+  --radius-tile: 8px;
+  --radius-panel: 14px;
+
+  /* One orchestrated moment: the order stamp. Everything else answers a tap. */
+  --animate-stamp: stamp 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+  --animate-sheet: sheet 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-veil: veil 0.18s ease-out both;
+  --animate-pop: pop 0.16s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes stamp {
+  0%   { transform: scale(1.7) rotate(-9deg); opacity: 0; }
+  60%  { transform: scale(0.94) rotate(-2deg); opacity: 1; }
+  100% { transform: scale(1) rotate(-2deg); opacity: 1; }
+}
+@keyframes sheet {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+@keyframes veil {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes pop {
+  from { transform: scale(0.96); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ========================================================================= */
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background-color: var(--color-brand-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Prices, timers, table numbers and counts all have to line up in columns */
+  h1, h2, h3, h4, th, td, output, time {
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background: var(--color-accent);
+    color: var(--color-ink);
+  }
+
+  ::placeholder {
+    color: var(--color-ink-faint);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@layer components {
+  /* --- the awning: one thin striped band on every piece of chrome -------- */
+  .awning {
+    height: 5px;
+    flex: none;
+    background: repeating-linear-gradient(
+      114deg,
+      var(--color-primary) 0 13px,
+      #fff6ec 13px 26px
+    );
+  }
+  .awning-hot {
+    background: repeating-linear-gradient(
+      114deg,
+      var(--color-accent) 0 13px,
+      var(--color-primary-dark) 13px 26px
+    );
+  }
+
+  /* --- surfaces ---------------------------------------------------------- */
+  .panel {
+    background: var(--color-brand-card);
+    border: 1px solid var(--color-edge);
+    border-radius: var(--radius-panel);
+  }
+  .panel-sunk {
+    background: var(--color-shell);
+    border: 1px solid var(--color-edge);
+    border-radius: var(--radius-panel);
+  }
+
+  /* --- the menu board dot leader: name ········· price -------------------- */
+  .leader {
+    flex: 1 1 auto;
+    min-width: 1.25rem;
+    align-self: flex-end;
+    margin-bottom: 0.4em;
+    border-bottom: 1.5px dotted #d6c5b5;
+  }
+  .leader-dark {
+    border-bottom-color: var(--color-kds-edge);
+  }
+
+  /* --- controls ---------------------------------------------------------- */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-family: var(--font-display);
+    font-weight: 600;
+    line-height: 1;
+    border-radius: var(--radius-tile);
+    border: 1px solid transparent;
+    padding: 0.75rem 1.1rem;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease,
+      color 0.15s ease, transform 0.08s ease;
+  }
+  .btn:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+  .btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  .btn-red {
+    background: var(--color-primary);
+    color: #fff;
+  }
+  .btn-red:hover:not(:disabled) {
+    background: var(--color-primary-dark);
+  }
+
+  .btn-ink {
+    background: var(--color-ink);
+    color: var(--color-brand-bg);
+  }
+  .btn-ink:hover:not(:disabled) {
+    background: #452a21;
+  }
+
+  .btn-go {
+    background: var(--color-done);
+    color: #fff;
+  }
+  .btn-go:hover:not(:disabled) {
+    background: #35673f;
+  }
+
+  .btn-plain {
+    background: var(--color-brand-card);
+    color: var(--color-ink);
+    border-color: var(--color-edge);
+  }
+  .btn-plain:hover:not(:disabled) {
+    background: var(--color-shell);
+    border-color: var(--color-ink-faint);
+  }
+
+  .btn-quiet {
+    background: transparent;
+    color: var(--color-ink-soft);
+  }
+  .btn-quiet:hover:not(:disabled) {
+    background: var(--color-shell);
+    color: var(--color-ink);
+  }
+
+  .btn-danger {
+    background: var(--color-brand-card);
+    color: var(--color-primary-dark);
+    border-color: #f0c9c7;
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: #fdf1f0;
+    border-color: var(--color-primary);
+  }
+
+  .btn-sm {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+  }
+  .btn-lg {
+    padding: 0.95rem 1.4rem;
+    font-size: 1rem;
+  }
+
+  /* --- fields ------------------------------------------------------------ */
+  .field {
+    width: 100%;
+    background: var(--color-brand-card);
+    border: 1px solid var(--color-edge);
+    border-radius: var(--radius-tile);
+    padding: 0.65rem 0.8rem;
+    font-size: 0.9375rem;
+    color: var(--color-ink);
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+  }
+  .field:hover:not(:disabled) {
+    border-color: var(--color-ink-faint);
+  }
+  .field:disabled {
+    background: var(--color-shell);
+    color: var(--color-ink-faint);
+    cursor: not-allowed;
+  }
+  .field-label {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-ink-soft);
+    margin-bottom: 0.35rem;
+  }
+
+  /* --- small status marks ------------------------------------------------ */
+  .mark {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1;
+    padding: 0.3rem 0.5rem;
+    border-radius: var(--radius-chit);
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+  .mark-wait {
+    color: var(--color-wait);
+    background: var(--color-wait-tint);
+    border-color: #ecd9a4;
+  }
+  .mark-cook {
+    color: var(--color-cook);
+    background: var(--color-cook-tint);
+    border-color: #f3cea4;
+  }
+  .mark-done {
+    color: var(--color-done);
+    background: var(--color-done-tint);
+    border-color: #c3dcc3;
+  }
+  .mark-off {
+    color: var(--color-ink-soft);
+    background: var(--color-shell);
+    border-color: var(--color-edge);
+  }
+  .mark-hot {
+    color: var(--color-primary-dark);
+    background: #fdeceb;
+    border-color: #f2c6c4;
+  }
+
+  /* --- a dot that keeps time without shouting ---------------------------- */
+  .live-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 999px;
+    background: currentColor;
+    animation: pulse-soft 2s ease-in-out infinite;
+  }
+
+  .spinner {
+    border-radius: 999px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    animation: spin 0.7s linear infinite;
+  }
+
+  /* --- horizontal scroll rails ------------------------------------------- */
+  .rail {
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .rail::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* =========================================================================
+   Back of house — the counter, the rail and the ledger
+
+   Front of house is a menu board and a table tent. Behind the pass the same
+   brand turns into paperwork: chits on a rail, rows in a ledger, a receipt.
+   Square corners mean paper, and the only thing that moves on its own is the
+   bar that counts a dish's age, because that is information.
+   ========================================================================= */
+
+@keyframes chit-in {
+  from { transform: translateY(-6px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+@layer components {
+  /* --- dark chrome controls, for the kitchen room ------------------------ */
+  .btn-dark {
+    background: var(--color-kds-raise);
+    color: var(--color-kds-text);
+    border-color: var(--color-kds-edge);
+  }
+  .btn-dark:hover:not(:disabled) {
+    background: var(--color-kds-edge);
+  }
+
+  .btn-dark-quiet {
+    background: transparent;
+    color: var(--color-kds-mute);
+  }
+  .btn-dark-quiet:hover:not(:disabled) {
+    background: var(--color-kds-panel);
+    color: var(--color-kds-text);
+  }
+
+  .field-dark {
+    background: var(--color-kds-panel);
+    border-color: var(--color-kds-edge);
+    color: var(--color-kds-text);
+  }
+  .field-dark:hover:not(:disabled) {
+    border-color: var(--color-kds-mute);
+  }
+
+  .mark-dark {
+    color: var(--color-kds-mute);
+    background: var(--color-kds-raise);
+    border-color: var(--color-kds-edge);
+  }
+
+  /* --- underline tabs ---------------------------------------------------- */
+  .tab {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: none;
+    padding: 0.7rem 0.9rem;
+    font-family: var(--font-display);
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    color: var(--color-ink-faint);
+    background: transparent;
+    cursor: pointer;
+    transition: color 0.15s ease;
+  }
+  .tab:hover {
+    color: var(--color-ink-soft);
+  }
+  .tab::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0.5rem;
+    bottom: 0;
+    height: 2px;
+    background: transparent;
+  }
+  .tab-on,
+  .tab-on:hover {
+    color: var(--color-ink);
+  }
+  .tab-on::after {
+    background: var(--color-primary);
+  }
+  .tab-dark {
+    color: var(--color-kds-mute);
+  }
+  .tab-dark:hover {
+    color: var(--color-kds-text);
+  }
+  .tab-dark.tab-on,
+  .tab-dark.tab-on:hover {
+    color: var(--color-kds-text);
+  }
+  .tab-dark.tab-on::after {
+    background: var(--color-accent);
+  }
+
+  /* --- a dish waiting on the rail ---------------------------------------- */
+  .chit {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--color-kds-panel);
+    border: 1px solid var(--color-kds-edge);
+    border-radius: var(--radius-chit);
+    animation: chit-in 0.2s ease-out both;
+  }
+  .chit-late {
+    border-color: var(--color-primary);
+  }
+  .chit-done {
+    background: transparent;
+    border-style: dashed;
+  }
+
+  /* the age of a dish, read as a column climbing the left edge of its chit */
+  .age {
+    position: absolute;
+    inset-block: 0;
+    left: 0;
+    width: 4px;
+    background: var(--color-kds-edge);
+  }
+  .age-fill {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    background: var(--color-accent);
+    transition: height 1s linear, background-color 0.4s ease;
+  }
+  .age-warm .age-fill {
+    background: var(--color-secondary);
+  }
+  .age-late .age-fill {
+    background: var(--color-primary);
+  }
+
+  /* what the customer wrote, stuck to the chit like the slip it is --------- */
+  .slip {
+    background: var(--color-accent);
+    color: #3a2c05;
+    border-radius: var(--radius-chit);
+  }
+
+  /* --- sold / sold out, flipped in place --------------------------------- */
+  .switch {
+    position: relative;
+    flex: none;
+    width: 2.75rem;
+    height: 1.5rem;
+    border-radius: 999px;
+    border: 1px solid var(--color-edge);
+    background: var(--color-shell);
+    cursor: pointer;
+    transition: background-color 0.18s ease, border-color 0.18s ease;
+  }
+  .switch::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 1.125rem;
+    height: 1.125rem;
+    border-radius: 999px;
+    background: var(--color-brand-card);
+    box-shadow: 0 1px 2px rgba(43, 26, 21, 0.3);
+    transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .switch-on {
+    background: var(--color-ink);
+    border-color: var(--color-ink);
+  }
+  .switch-on::after {
+    transform: translateX(1.25rem);
+  }
+
+  /* --- a measured quantity drawn under the row it belongs to -------------- */
+  .meter {
+    height: 3px;
+    border-radius: 999px;
+    background: var(--color-edge-soft);
+    overflow: hidden;
+  }
+  .meter-fill {
+    height: 100%;
+    background: var(--color-ink-faint);
+  }
+  .meter-fill-top {
+    background: var(--color-primary);
+  }
+}
