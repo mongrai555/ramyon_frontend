@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRestaurant, MenuItem, CartItem } from "@/context/RestaurantContext";
 import Image from "next/image";
 import Icon from "@/components/Icon";
+import usePoll from "@/hooks/usePoll";
 
 interface TableClientPageProps {
   tableId: string;
@@ -51,27 +52,48 @@ export default function TableClientPage({ tableId }: TableClientPageProps) {
   const [activeTab, setActiveTab] = useState<"menu" | "orders">("menu");
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // Load Table Details and Poll Client Placed Orders
-  useEffect(() => {
-    async function loadTable() {
+  // The seating this phone joined. The QR glued to the table never changes, so
+  // the table's session id is the only thing that can tell us a different
+  // party is sitting here now — or that ours just paid and left.
+  const sessionRef = useRef<string | null>(null);
+  const [closed, setClosed] = useState(false);
+
+  // Watch the table while this party is still seated. usePoll pauses whenever
+  // the phone is locked or the tab is in the background, and `closed` stops it
+  // outright: a table that has paid should cost the server nothing, even if the
+  // customer walks out with the page still open.
+  usePoll(
+    async () => {
       const info = await fetchTableDetails(tableId);
       if (info) {
         setTableNumber(info.number);
         setTableStatus(info.status);
-        localStorage.setItem("k_active_table", tableId);
+
+        if (info.sessionId) {
+          if (sessionRef.current === null) {
+            // First look: this is the seating we belong to.
+            sessionRef.current = info.sessionId;
+            localStorage.setItem("k_active_table", tableId);
+          } else if (info.sessionId !== sessionRef.current) {
+            // Our party's bill was settled, or staff cleared the table.
+            // Close the page down and leave nothing behind for whoever
+            // picks up this phone next.
+            setClosed(true);
+            setCart([]);
+            setIsCartOpen(false);
+            setSelectedItem(null);
+            localStorage.removeItem("k_active_table");
+            localStorage.removeItem(`placed_orders_${tableId}`);
+            return; // nothing left to fetch for a table we no longer sit at
+          }
+        }
       }
-    }
-    loadTable();
 
-    // Initial fetch of orders
-    refreshClientOrders(tableId);
-
-    // Poll orders status every 5 seconds
-    const interval = setInterval(() => {
-      refreshClientOrders(tableId);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [tableId]);
+      await refreshClientOrders(tableId);
+    },
+    5000,
+    !closed,
+  );
 
   // Filtering menu by category id
   const filteredMenu = menu.filter((item) => {
@@ -233,6 +255,50 @@ export default function TableClientPage({ tableId }: TableClientPageProps) {
     </span>
   );
 
+  // The seating ended while this page was open. There is deliberately no way
+  // back to the menu from here: the next order has to start with a scan, which
+  // is what tells the kitchen a new party is at the table.
+  if (closed) {
+    return (
+      <div className="flex min-h-screen flex-col bg-brand-bg">
+        <div className="awning" />
+
+        <div className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
+          <span className="relative h-24 w-24 overflow-hidden rounded-panel border border-edge">
+            <Image
+              src="/ramyone.jpg"
+              alt=""
+              fill
+              sizes="96px"
+              className="object-cover"
+            />
+          </span>
+
+          <p className="mt-6 text-xs font-medium tracking-wide text-primary">
+            라면 언니
+          </p>
+          <h1 className="font-display mt-2 text-3xl leading-tight font-bold tracking-tight">
+            ขอบคุณที่ใช้บริการค่ะ
+          </h1>
+
+          <p className="mt-3 max-w-xs text-sm leading-relaxed text-ink-soft">
+            โต๊ะ {tableNumber} ชำระเงินเรียบร้อยแล้ว
+            หวังว่าจะได้ต้อนรับอีกนะคะ
+          </p>
+
+          <div className="panel-sunk mt-10 flex max-w-xs flex-col items-center gap-2 px-5 py-4">
+            <Icon name="qr" size={22} className="text-ink-faint" />
+            <p className="text-xs leading-relaxed text-ink-faint">
+              ถ้าต้องการสั่งอาหารอีกครั้ง
+              กรุณาสแกนคิวอาร์โค้ดบนโต๊ะใหม่อีกรอบ
+            </p>
+          </div>
+        </div>
+
+        <div className="awning" />
+      </div>
+    );
+  }
   return (
     <div className="flex min-h-screen flex-col bg-brand-bg pb-24">
       {/* Top bar: who you are and which table you are sitting at */}

@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
+import usePoll from "@/hooks/usePoll";
 
 // Local types matching backend schemas
 export interface MenuItem {
@@ -105,7 +106,14 @@ interface RestaurantContextType {
   updateMenuItem: (id: string, item: { name?: string; description?: string; price?: number; categoryId?: string; imageUrl?: string; isAvailable?: boolean }) => Promise<boolean>;
   deleteMenuItem: (id: string) => Promise<boolean>;
   toggleMenuAvailability: (item: MenuItem) => Promise<boolean>;
-  fetchTableDetails: (tableId: string) => Promise<{ number: string; status: string } | null>;
+  closeTableSession: (tableId: string) => Promise<boolean>;
+  fetchTableDetails: (
+    tableId: string
+  ) => Promise<{
+    number: string;
+    status: string;
+    sessionId?: string;
+  } | null>;
   refreshClientOrders: (tableId: string) => Promise<void>;
   refreshAdminData: () => Promise<void>;
   getTableQrCode: (tableId: string) => Promise<string | null>;
@@ -419,10 +427,31 @@ export function RestaurantProvider({ children }: { children: React.ReactNode }) 
       const res = await fetch(`${API_URL}/tables/${tableId}`);
       if (!res.ok) return null;
       const data = await res.json();
-      return { number: data.number, status: data.status };
+      return {
+        number: data.number,
+        status: data.status,
+        sessionId: data.sessionId as string | undefined,
+      };
     } catch (err) {
       console.error("Fetch table details error:", err);
       return null;
+    }
+  };
+
+  /**
+   * Ends a seating by hand — the "ล้างโต๊ะ" button. Paying a bill does this on
+   * the server already; this covers the party that walked out without ordering,
+   * and it is what releases any phone still sitting on that table's menu.
+   */
+  const closeTableSession = async (tableId: string): Promise<boolean> => {
+    try {
+      const res = await customFetch(`${API_URL}/tables/${tableId}/close`, {
+        method: "POST",
+      });
+      return res.ok;
+    } catch (err) {
+      console.error("Close table session error:", err);
+      return false;
     }
   };
 
@@ -1070,25 +1099,25 @@ export function RestaurantProvider({ children }: { children: React.ReactNode }) 
     }
   };
 
-  // Periodically refresh data if logged in
-  useEffect(() => {
-    if (adminToken && restaurant) {
+  // Keep the back-of-house screens live. This used to be a setInterval whose
+  // dependency list included values that change identity on every refresh, so
+  // the timer was cleared and restarted before it could tick and the floor
+  // only moved when someone reloaded the page.
+  usePoll(
+    () => {
       refreshAdminData();
       refreshBills();
-      const hasAdminRole = adminUser?.role === 'admin' || (typeof window !== 'undefined' && JSON.parse(sessionStorage.getItem("k_admin_user") || '{}').role === 'admin');
-      if (hasAdminRole) {
+      const isAdmin =
+        adminUser?.role === 'admin' ||
+        (typeof window !== 'undefined' &&
+          JSON.parse(sessionStorage.getItem("k_admin_user") || '{}').role === 'admin');
+      if (isAdmin) {
         refreshUsers();
       }
-      const interval = setInterval(() => {
-        refreshAdminData();
-        refreshBills();
-        if (hasAdminRole) {
-          refreshUsers();
-        }
-      }, 5000); // refresh admin dashboard every 5s
-      return () => clearInterval(interval);
-    }
-  }, [adminToken, restaurant, categories, adminUser]);
+    },
+    5000,
+    Boolean(adminToken && restaurant),
+  );
 
   if (!isLoaded) {
     return (
@@ -1122,6 +1151,7 @@ export function RestaurantProvider({ children }: { children: React.ReactNode }) 
         addMenuItem,
         deleteMenuItem,
         toggleMenuAvailability,
+        closeTableSession,
         fetchTableDetails,
         refreshClientOrders,
         refreshAdminData,

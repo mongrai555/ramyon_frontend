@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useRestaurant } from "@/context/RestaurantContext";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -10,6 +10,8 @@ import Modal from "@/components/Modal";
 import Confirm from "@/components/Confirm";
 import PopMenu from "@/components/PopMenu";
 import printQrTent from "@/lib/printQrTent";
+import { buzz, playChime, unlockAudio } from "@/lib/alert";
+import useNewItems from "@/hooks/useNewItems";
 
 type Tab = "tables" | "bills" | "users" | "analytics";
 type Period = "today" | "7days" | "30days" | "all";
@@ -61,6 +63,7 @@ export default function AdminDashboard() {
     updateOrderStatus,
     refreshAdminData,
     getTableQrCode,
+    closeTableSession,
     moveTable,
     addTable,
     deleteTable,
@@ -95,6 +98,13 @@ export default function AdminDashboard() {
   } | null>(null);
   const [selectedTargetTableId, setSelectedTargetTableId] = useState("");
   const [openTableMenuId, setOpenTableMenuId] = useState<string | null>(null);
+  const [orderAlert, setOrderAlert] = useState("");
+  // Read once at mount rather than in an effect: the page renders a spinner
+  // until the auth check finishes, so there is no markup to mismatch.
+  const [soundOn, setSoundOn] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return localStorage.getItem("admin_sound_enabled") !== "false";
+  });
   const [isAddTableOpen, setIsAddTableOpen] = useState(false);
   const [newTableNumber, setNewTableNumber] = useState("");
 
@@ -133,6 +143,38 @@ export default function AdminDashboard() {
 
   const isManager = adminUser?.role === "admin";
   const staff = users as StaffUser[];
+
+  /* ------------------------------------------------- new-order alerting */
+
+  // The till is usually across the room from whoever is watching this screen,
+  // so a silent row appearing in a grid is not enough: a new dish rings, buzzes
+  // and puts a banner up until someone dismisses it.
+  const itemTable = useMemo(() => {
+    const map = new Map<string, string>();
+    tables.forEach((t) => t.orders.forEach((o) => map.set(o.id, t.number)));
+    return map;
+  }, [tables]);
+
+  const liveItemIds = useMemo(() => Array.from(itemTable.keys()), [itemTable]);
+
+  useNewItems(liveItemIds, (added) => {
+    const numbers = Array.from(
+      new Set(added.map((id) => itemTable.get(id)).filter(Boolean))
+    );
+    setOrderAlert(
+      `ออเดอร์ใหม่ ${added.length} รายการ จากโต๊ะ ${numbers.join(", ")}`
+    );
+    if (soundOn) playChime();
+    buzz();
+  });
+
+  // Long enough to catch someone walking back to the counter, short enough
+  // that a stale banner never gets mistaken for a fresh order.
+  useEffect(() => {
+    if (!orderAlert) return;
+    const t = setTimeout(() => setOrderAlert(""), 20000);
+    return () => clearTimeout(t);
+  }, [orderAlert]);
 
   const tableList = [...tables].sort((a, b) => a.number.localeCompare(b.number));
   const occupiedCount = tableList.filter((t) => t.status === "occupied").length;
@@ -296,6 +338,12 @@ export default function AdminDashboard() {
     for (const orderId of orderIds) {
       await updateOrderStatus(orderId, "cancelled");
     }
+
+    // Free the table and end the seating, so any phone still on this table's
+    // menu drops to the thank-you screen instead of ordering onto a clean table.
+    await closeTableSession(tableId);
+    await refreshAdminData();
+
     setNotice(`ล้างโต๊ะ ${tableState.number} แล้ว`);
   };
 
@@ -468,6 +516,37 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {orderAlert && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="animate-pop sticky top-14 z-30 border-b border-primary-dark/30 bg-primary text-white shadow-lg"
+        >
+          <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3 md:px-6">
+            <Icon name="bell" size={18} className="shrink-0" />
+            <p className="flex-1 text-sm font-bold">{orderAlert}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setOrderAlert("");
+                setActiveTab("tables");
+              }}
+              className="shrink-0 rounded-tile bg-white/15 px-3 py-1.5 text-xs font-bold hover:bg-white/25"
+            >
+              ดูโต๊ะ
+            </button>
+            <button
+              type="button"
+              onClick={() => setOrderAlert("")}
+              aria-label="ปิดการแจ้งเตือน"
+              className="shrink-0 opacity-80 hover:opacity-100"
+            >
+              <Icon name="close" size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
       <main className="mx-auto max-w-6xl px-4 py-6 md:px-6">
         {notice && (
           <p
@@ -500,19 +579,46 @@ export default function AdminDashboard() {
                 </p>
               </div>
 
-              {isManager && (
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
+                  aria-pressed={soundOn}
                   onClick={() => {
-                    setFormError("");
-                    setIsAddTableOpen(true);
+                    const next = !soundOn;
+                    setSoundOn(next);
+                    localStorage.setItem("admin_sound_enabled", String(next));
+                    // Turning it on counts as the gesture the browser wants
+                    // before it will let the page make a sound at all.
+                    if (next) {
+                      unlockAudio();
+                      playChime();
+                    }
                   }}
-                  className="btn btn-red"
+                  className={`btn btn-sm ${soundOn ? "btn-ink" : "btn-plain"}`}
+                  title={
+                    soundOn
+                      ? "ปิดเสียงแจ้งเตือนออเดอร์ใหม่"
+                      : "เปิดเสียงแจ้งเตือนออเดอร์ใหม่"
+                  }
                 >
-                  <Icon name="plus" size={17} />
-                  เพิ่มโต๊ะ
+                  <Icon name="bell" size={16} />
+                  {soundOn ? "เสียงเปิด" : "เสียงปิด"}
                 </button>
-              )}
+
+                {isManager && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormError("");
+                      setIsAddTableOpen(true);
+                    }}
+                    className="btn btn-red"
+                  >
+                    <Icon name="plus" size={17} />
+                    เพิ่มโต๊ะ
+                  </button>
+                )}
+              </div>
             </div>
 
             {tableList.length === 0 ? (
