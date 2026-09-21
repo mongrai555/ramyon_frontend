@@ -103,9 +103,9 @@ export default function AdminTableClientPage({
     }
   };
 
-  const handlePrintQr = () => {
+  const handlePrintQr = async () => {
     if (!qrCode) return;
-    if (!printQrTent(qrCode, tableNumber)) {
+    if (!(await printQrTent(qrCode, tableNumber))) {
       setError("เบราว์เซอร์บล็อกหน้าต่างพิมพ์ อนุญาตป๊อปอัปของหน้านี้ก่อน");
     }
   };

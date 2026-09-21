@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRestaurant } from "@/context/RestaurantContext";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -149,20 +149,43 @@ export default function AdminDashboard() {
   // The till is usually across the room from whoever is watching this screen,
   // so a silent row appearing in a grid is not enough: a new dish rings, buzzes
   // and puts a banner up until someone dismisses it.
-  const itemTable = useMemo(() => {
-    const map = new Map<string, string>();
-    tables.forEach((t) => t.orders.forEach((o) => map.set(o.id, t.number)));
+  // Anything the kitchen received before this screen was opened is history, not
+  // news. Comparing against the moment of opening — rather than against the
+  // first list the screen happened to see — means the alert survives a poll
+  // that lands late, a tab that was in the background, or a main thread that
+  // was blocked by a print dialog. Those gaps used to swallow the first order
+  // of the shift and leave staff thinking the alert was broken.
+  // Starts at infinity so nothing can look "new" before the clock is set; the
+  // effect below stamps it on mount, ahead of any poll result.
+  const openedAt = useRef(Number.POSITIVE_INFINITY);
+  useEffect(() => {
+    openedAt.current = Date.now();
+  }, []);
+
+  const itemIndex = useMemo(() => {
+    const map = new Map<string, { table: string; at: number }>();
+    tables.forEach((t) =>
+      t.orders.forEach((o) =>
+        map.set(o.id, { table: t.number, at: o.createdAtMs })
+      )
+    );
     return map;
   }, [tables]);
 
-  const liveItemIds = useMemo(() => Array.from(itemTable.keys()), [itemTable]);
+  const liveItemIds = useMemo(() => Array.from(itemIndex.keys()), [itemIndex]);
 
   useNewItems(liveItemIds, (added) => {
+    const fresh = added.filter((id) => {
+      const entry = itemIndex.get(id);
+      return entry !== undefined && entry.at >= openedAt.current;
+    });
+    if (fresh.length === 0) return;
+
     const numbers = Array.from(
-      new Set(added.map((id) => itemTable.get(id)).filter(Boolean))
+      new Set(fresh.map((id) => itemIndex.get(id)?.table).filter(Boolean))
     );
     setOrderAlert(
-      `ออเดอร์ใหม่ ${added.length} รายการ จากโต๊ะ ${numbers.join(", ")}`
+      `ออเดอร์ใหม่ ${fresh.length} รายการ จากโต๊ะ ${numbers.join(", ")}`
     );
     if (soundOn) playChime();
     buzz();
@@ -355,7 +378,7 @@ export default function AdminDashboard() {
         setNotice("ดึงโค้ดของโต๊ะไม่สำเร็จ ตรวจการเชื่อมต่อหลังบ้าน");
         return;
       }
-      if (!printQrTent(code, tableNumber)) {
+      if (!(await printQrTent(code, tableNumber))) {
         setNotice("เบราว์เซอร์บล็อกหน้าต่างพิมพ์ อนุญาตป๊อปอัปของหน้านี้ก่อน");
       }
     } catch (err) {

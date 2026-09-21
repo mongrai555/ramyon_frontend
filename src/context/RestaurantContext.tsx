@@ -38,6 +38,12 @@ export interface OrderItem {
   specialNotes: string;
   status: "pending" | "preparing" | "served" | "completed" | "cancelled";
   timestamp: string;
+  /**
+   * When the kitchen actually received this, in epoch milliseconds. The
+   * formatted `timestamp` above is for display; alerting needs to compare
+   * against the moment a screen was opened, which a "14:32" string cannot do.
+   */
+  createdAtMs: number;
 }
 
 export interface TableState {
@@ -595,6 +601,7 @@ export function RestaurantProvider({ children }: { children: React.ReactNode }) 
                 hour: "2-digit",
                 minute: "2-digit",
               }),
+              createdAtMs: new Date(o.createdAt).getTime(),
             });
           });
         });

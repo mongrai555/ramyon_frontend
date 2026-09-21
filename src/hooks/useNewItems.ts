@@ -3,10 +3,16 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 
 /**
- * Calls `onNew` with the ids that appeared since the previous render pass.
+ * Calls `onNew` with the ids that appeared since the previous pass, including
+ * everything present on the very first pass.
  *
- * The first observation only sets the baseline: opening a screen onto a floor
- * full of running orders should not sound like twenty tables just ordered.
+ * It deliberately does NOT swallow that first batch. An earlier version did,
+ * to avoid announcing a floor full of running orders on page load — but that
+ * made the alert depend on the screen having observed an empty list first, and
+ * any hiccup (a blocked main thread, a poll that landed before the component
+ * mounted) silently ate the first real order of the shift. Deciding what counts
+ * as new is the caller's job now, and it has the order timestamps to do it
+ * properly.
  */
 export default function useNewItems(
   ids: string[],
@@ -30,10 +36,8 @@ export default function useNewItems(
     }
 
     const current = fingerprint ? fingerprint.split("|") : [];
-    const before = previous.current;
+    const before = previous.current ?? [];
     previous.current = current;
-
-    if (before === null) return;
 
     const added = current.filter((id) => !before.includes(id));
     if (added.length > 0) handler.current(added);
